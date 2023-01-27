@@ -1,9 +1,10 @@
-from typing import Any, Dict, Optional, Union, List, Iterable
+from typing import Any, Dict, Iterable, List, Optional, Union
+
 import requests
 from singer_sdk import typing as th  # JSON Schema typing helpers
-from singer_sdk.exceptions import RetriableAPIError, FatalAPIError
-from tap_gong.client import GongStream
+from singer_sdk.exceptions import FatalAPIError, RetriableAPIError
 from tap_gong import config_helper
+from tap_gong.client import GongStream
 
 
 class InteractionStatsStream(GongStream):
@@ -11,14 +12,15 @@ class InteractionStatsStream(GongStream):
     schema = th.PropertiesList(
         th.Property("userEmailAddress", th.StringType),
         th.Property("userId", th.StringType),
-        th.Property("personInteractionStats",
-                    th.ArrayType(
-                        th.ObjectType(
-                            th.Property("name", th.StringType),
-                            th.Property("value", th.NumberType)
-                        )
-                    )
-                    )
+        th.Property(
+            "personInteractionStats",
+            th.ArrayType(
+                th.ObjectType(
+                    th.Property("name", th.StringType),
+                    th.Property("value", th.NumberType),
+                )
+            ),
+        ),
     ).to_dict()
     path = "/v2/stats/interaction"
     primary_keys = ["userId"]
@@ -31,16 +33,17 @@ class InteractionStatsStream(GongStream):
     retried = False
     modified_request = False
 
-    def prepare_request_payload(self, context: Optional[dict], next_page_token: Optional[Any]) -> Optional[dict]:
+    def prepare_request_payload(
+        self, context: Optional[dict], next_page_token: Optional[Any]
+    ) -> Optional[dict]:
         """Prepare the data payload for the REST API request."""
-        stats_filter_dates = config_helper.get_stats_dates_from_config(
-            self.config, self.retried)
+        stats_filter_dates = config_helper.get_stats_dates_from_config(self.config, self.retried)
         request_body = {
             "cursor": next_page_token,
             "filter": {
                 "fromDate": stats_filter_dates["stats_from_date"],
-                "toDate": stats_filter_dates["stats_to_date"]
-            }
+                "toDate": stats_filter_dates["stats_to_date"],
+            },
         }
         return request_body
 
@@ -75,10 +78,7 @@ class InteractionStatsStream(GongStream):
         .. _requests.Response:
             https://requests.readthedocs.io/en/latest/api/#requests.Response
         """
-        if (
-            response.status_code in self.extra_retry_statuses
-            or 500 <= response.status_code < 600
-        ):
+        if response.status_code in self.extra_retry_statuses or 500 <= response.status_code < 600:
             msg = self.response_error_message(response)
             raise RetriableAPIError(msg, response)
         elif 400 <= response.status_code < 500:
